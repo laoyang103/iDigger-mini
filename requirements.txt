@@ -1,0 +1,6 @@
+argparse==1.2.1
+py==1.4.30
+pyshark==0.3.5
+trollius==1.0.4
+web.py==0.37
+wsgiref==0.1.2
