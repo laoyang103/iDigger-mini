@@ -1,4 +1,5 @@
 import sys
+import json
 import sqlite3
 import subprocess as sp
 sys.path.append('./env/lib/python2.7/site-packages/')
@@ -18,7 +19,7 @@ urls = (
     '/io_phs', 'io_phs',
     '/ip_hosts', 'ip_hosts',
     '/uflts', 'uflts',
-    '/uflts_add', 'uflts_add',
+    '/uflts/add', 'uflts_add',
     '/set_dfilter', 'set_dfilter'
 )
 db = web.database(dbn='sqlite', db="./db.sqlite3")
@@ -26,19 +27,22 @@ layername = {'UDP': 'Transmission', 'TCP': 'Transmission', 'IP': 'Network', 'ETH
 
 class home:
     def GET(self):
-        psummary_list = cached.get_summary_list(10, 10)
-        return psummary_list 
+        psummary_list = cached.get_summary_list(0, 10)
+        web.header('Access-Control-Allow-Origin', '*')
+        return json.dumps(psummary_list)
 
 class plist:
     def GET(self):
         params = web.input(start=0, limit=10)
         psummary_list = cached.get_summary_list(int(params.start), int(params.limit))
-        return psummary_list 
+        web.header('Access-Control-Allow-Origin', '*')
+        return json.dumps(psummary_list)
 
 class set_dfilter:
     def GET(self):
         params = web.input(dflt='')
         cached.set_dfilter(params.dflt)
+        web.header('Access-Control-Allow-Origin', '*')
         return 'Y'
 
 class decode:
@@ -50,7 +54,8 @@ class decode:
                 decode_dict[layer.layer_name.upper()] = layer._all_fields
             else: 
                 decode_dict[layername[layer.layer_name.upper()] + ' (' + layer.layer_name.upper() + ')'] = layer._all_fields
-        return decode_dict
+        web.header('Access-Control-Allow-Origin', '*')
+        return json.dumps(decode_dict)
 
 class expertinfo:
     def GET(self):
@@ -79,7 +84,8 @@ class expertinfo:
             currinfo.append(record)
         p.stdout.close()
         p.stdin.close()
-        return expert
+        web.header('Access-Control-Allow-Origin', '*')
+        return json.dumps(expert)
 
 class capinfo:
     def GET(self):
@@ -93,7 +99,8 @@ class capinfo:
             line = p.stdout.readline()
         p.stdout.close()
         p.stdin.close()
-        return capinfo
+        web.header('Access-Control-Allow-Origin', '*')
+        return json.dumps(capinfo)
 
 class conv:
     def GET(self):
@@ -131,7 +138,8 @@ class conv:
             outconv.append(conv)
         p.stdout.close()
         p.stdin.close()
-        return outconv
+        web.header('Access-Control-Allow-Origin', '*')
+        return json.dumps(outconv)
 
 class follow_tcp_stream:
     def GET(self):
@@ -141,13 +149,14 @@ class follow_tcp_stream:
         lines = txt2html(p.stdout.read())
         p.stdout.close()
         p.stdin.close()
+        web.header('Access-Control-Allow-Origin', '*')
         return lines
 
 class filter_expression:
     def GET(self):
         with open('./static/filter_expression') as f: 
-            lines = f.readlines()
-            return lines
+            web.header('Access-Control-Allow-Origin', '*')
+            return f.read()
 
 class packet_len:
     def GET(self):
@@ -161,7 +170,8 @@ class packet_len:
             fields = line.split()
             if len(fields) != len(field_names): continue
             out_json.append(dict(zip(field_names, fields)))
-        return out_json
+        web.header('Access-Control-Allow-Origin', '*')
+        return json.dumps(out_json)
 
 class ip_hosts:
     def GET(self):
@@ -175,26 +185,29 @@ class ip_hosts:
             fields = line.split()
             if len(fields) != len(field_names): continue
             out_json.append(dict(zip(field_names, fields)))
-        return out_json
+        web.header('Access-Control-Allow-Origin', '*')
+        return json.dumps(out_json)
 
 class io_phs:
     def GET(self):
         base_args = ['tshark', '-q', '-r', './capture_test.pcapng', '-z', 'io,phs']
         p = sp.Popen(base_args, stdin=sp.PIPE, stdout=sp.PIPE, close_fds=True)
-        lines = p.stdout.readlines()
-        return lines
+        web.header('Access-Control-Allow-Origin', '*')
+        return p.stdout.read()
 
 class uflts:
     def GET(self):
         reslist = []
         flts = list(db.select('tshark_userflt', what='name', group='name'))
         for flt in flts: reslist.append({'name': flt.name})
-        return reslist
+        web.header('Access-Control-Allow-Origin', '*')
+        return json.dumps(reslist)
 
 class uflts_add:
     def GET(self):
         params = web.input(name='')
         db.insert('tshark_userflt', name=params.name)
+        web.header('Access-Control-Allow-Origin', '*')
         return 'Y'
 
 def gen_statistics_args(base_args, statistics, flt):

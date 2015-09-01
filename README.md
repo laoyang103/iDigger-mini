@@ -28,7 +28,7 @@
     
 运行 :
     
-    python manage.py runserver
+    python view.py
 
 在浏览器中输入 http://127.0.0.1:8000/
 即可看到数据包列表
