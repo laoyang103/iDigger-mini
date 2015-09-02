@@ -1,3 +1,5 @@
+import os
+import datetime
 import sys
 import json
 import sqlite3
@@ -9,6 +11,7 @@ import cached
 urls = (
     '/', 'home',
     '/conv', 'conv',
+    '/analy', 'analy',
     '/plist', 'plist',
     '/decode', 'decode',
     '/expertinfo', 'expertinfo',
@@ -20,21 +23,59 @@ urls = (
     '/ip_hosts', 'ip_hosts',
     '/uflts', 'uflts',
     '/uflts/add', 'uflts_add',
+    '/res/(.*)', 'res',
+    '/iDiggers/(.*)', 'iDiggers',
     '/set_dfilter', 'set_dfilter'
 )
 db = web.database(dbn='sqlite', db="./db.sqlite3")
 layername = {'UDP': 'Transmission', 'TCP': 'Transmission', 'IP': 'Network', 'ETH': 'Ethernet'}
 
+class res:
+    def GET(self, name):
+        f = open('res/'+ name)
+        return f.read()
+
+class iDiggers:
+    def GET(self, name):
+        f = open('iDiggers/'+ name)
+        return f.read()
+
 class home:
     def GET(self):
-        psummary_list = cached.get_summary_list(0, 10)
+        fnamelist = os.listdir(cached.analy_basedir)
         web.header('Access-Control-Allow-Origin', '*')
-        return json.dumps(psummary_list)
+        html  = "<html>"
+        html += "<body>"
+        html += "<table border=\"5\">"
+        html += "<caption>Packet file list</caption>"
+        html += "<tr><th>File</th><th>Time</th><th>Bytes</th><th>Size (MB)</th><th>Analysis</th></tr>"
+        html += "<tbody>"
+        for fname in fnamelist: 
+            html += "<tr>"
+            html += "<td>" + fname + "</td>"
+            time = os.path.getmtime(cached.analy_basedir + fname)
+            html += "<td>" + str(datetime.datetime.fromtimestamp(time)) + "</td>"
+            size = os.path.getsize(cached.analy_basedir + fname)
+            if 0 == size: size = 1
+            html += "<td>" + str(size) + "</td>"
+            html += "<td>" + str(size / 1024 / 1024) + "</td>"
+            html += "<td><a href=\"/analy?fname=" + fname + "\">Analysis</td>"
+            html += "</tr>"
+        html += "</tbody>"
+        html += "</table>"
+        html += "</body>"
+        html += "</html>"
+        return html
+
+class analy:
+    def GET(self):
+        params = web.input(fname='')
+        cached.set_fname(params.fname)
+        raise web.redirect('/iDiggers/iDigger.html')
 
 class plist:
     def GET(self):
-        params = web.input(start=0, limit=10)
-        psummary_list = cached.get_summary_list(int(params.start), int(params.limit))
+        psummary_list = cached.get_summary_list()
         web.header('Access-Control-Allow-Origin', '*')
         return json.dumps(psummary_list)
 
@@ -61,7 +102,7 @@ class expertinfo:
     def GET(self):
         FILTER, FREQUENCY, GROUP, PROTOCOL, SUMMARY = range(5)
         expert = {'Errors': [], 'Warns': [], 'Notes': [], 'Chats': []}
-        base_args = ['tshark', '-q', '-r', './capture_test.pcapng', '-z']
+        base_args = ['tshark', '-q', '-r', cached.get_curr_fname_path(), '-z']
         p = sp.Popen(gen_statistics_args(base_args, 'expert', cached.dfilter), stdin=sp.PIPE, stdout=sp.PIPE, close_fds=True)
 
         currinfo = None
@@ -91,7 +132,7 @@ class capinfo:
     def GET(self):
         capinfo = {}
         NAME, VALUE = SOCK_ADDR, SOCK_PORT = range(2)
-        p = sp.Popen(['capinfos', './capture_test.pcapng'], stdin=sp.PIPE, stdout=sp.PIPE, close_fds=True)
+        p = sp.Popen(['capinfos', cached.get_curr_fname_path()], stdin=sp.PIPE, stdout=sp.PIPE, close_fds=True)
         line = p.stdout.readline()
         while line:
             fields = line.split(':', 1)
@@ -108,7 +149,7 @@ class conv:
         NAME, VALUE = SOCK_ADDR, SOCK_PORT = range(2)
         SRCINFO, CONVSTR, DSTINFO, PACKETS_DST2SRC, BYTES_DST2SRC, PACKETS_SRC2DST, BYTES_SRC2DST, PACKETS, BYTES, REL_START, DURATION = range(11)
 
-        base_args = ['tshark', '-q', '-nn', '-r', './capture_test.pcapng', '-z']
+        base_args = ['tshark', '-q', '-nn', '-r', cached.get_curr_fname_path(), '-z']
         p = sp.Popen(gen_statistics_args(base_args, 'conv,tcp', cached.dfilter), stdin=sp.PIPE, stdout=sp.PIPE, close_fds=True)
 
         line = p.stdout.readline()
@@ -144,7 +185,7 @@ class conv:
 class follow_tcp_stream:
     def GET(self):
         params = web.input(tcp_stream_flt='')
-        base_args = ['tshark', '-q', '-r', './capture_test.pcapng', '-z']
+        base_args = ['tshark', '-q', '-r', cached.get_curr_fname_path(), '-z']
         p = sp.Popen(gen_statistics_args(base_args, 'follow,tcp,ascii', params.tcp_stream_flt), stdin=sp.PIPE, stdout=sp.PIPE, close_fds=True)
         lines = txt2html(p.stdout.read())
         p.stdout.close()
@@ -161,7 +202,7 @@ class filter_expression:
 class packet_len:
     def GET(self):
         out_json = []
-        base_args = ['tshark', '-q', '-r', './capture_test.pcapng', '-z', 'plen,tree']
+        base_args = ['tshark', '-q', '-r', cached.get_curr_fname_path(), '-z', 'plen,tree']
         field_names = ['Topic / Item', 'Count', 'Average', 'Min val', 'Max val', 'Rate (ms)', 'Percent', 'Burst rate', 'Burst start']
         p = sp.Popen(base_args, stdin=sp.PIPE, stdout=sp.PIPE, close_fds=True)
         line = p.stdout.readline()
@@ -176,7 +217,7 @@ class packet_len:
 class ip_hosts:
     def GET(self):
         out_json = []
-        base_args = ['tshark', '-q', '-r', './capture_test.pcapng', '-z', 'ip_hosts,tree']
+        base_args = ['tshark', '-q', '-r', cached.get_curr_fname_path(), '-z', 'ip_hosts,tree']
         field_names = ['Topic / Item', 'Count', 'Rate (ms)', 'Percent', 'Burst rate', 'Burst start']
         p = sp.Popen(base_args, stdin=sp.PIPE, stdout=sp.PIPE, close_fds=True)
         line = p.stdout.readline()
@@ -190,7 +231,7 @@ class ip_hosts:
 
 class io_phs:
     def GET(self):
-        base_args = ['tshark', '-q', '-r', './capture_test.pcapng', '-z', 'io,phs']
+        base_args = ['tshark', '-q', '-r', cached.get_curr_fname_path(), '-z', 'io,phs']
         p = sp.Popen(base_args, stdin=sp.PIPE, stdout=sp.PIPE, close_fds=True)
         web.header('Access-Control-Allow-Origin', '*')
         return p.stdout.read()
