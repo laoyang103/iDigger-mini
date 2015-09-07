@@ -11,13 +11,11 @@ analy_basedir = '/data/dumpfiles/'
 def get_summary_list():
     global summarys_cap, psummary_list
     if None == summarys_cap: 
-        i = 0
         psummary_list = []
         summarys_cap = pyshark.FileCapture(analy_basedir + analy_fname, only_summaries=True, display_filter=dfilter, keep_packets=True)
-        for summary in summarys_cap: 
-            i += 1
+        for i, summary in enumerate(summarys_cap): 
             if i > 2000: break
-            summary._fields['No'] = i
+            summary._fields['No'] = i + 1
             psummary_list.append(summary._fields)
     return psummary_list 
 
