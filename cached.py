@@ -9,13 +9,15 @@ curr_decode_num = 0
 analy_basedir = '/data/dumpfiles/'
 
 def get_summary_list():
-    global summarys_cap, psummary_list
+    global summarys_cap, psummary_list, analy_fname
     if None == summarys_cap: 
+        i = 0
         psummary_list = []
         summarys_cap = pyshark.FileCapture(analy_basedir + analy_fname, only_summaries=True, display_filter=dfilter, keep_packets=True)
-        for i, summary in enumerate(summarys_cap): 
+        for summary in summarys_cap: 
+            i += 1
             if i > 2000: break
-            summary._fields['No'] = i + 1
+            summary._fields['No'] = i
             psummary_list.append(summary._fields)
     return psummary_list 
 
@@ -31,7 +33,7 @@ def set_fname(fname):
     set_dfilter('')
 
 def get_pkt_decode(pkt_num):
-    global decodes_cap
+    global decodes_cap, analy_fname
     if None == decodes_cap: 
         decodes_cap = pyshark.FileCapture(analy_basedir + analy_fname, display_filter=dfilter, keep_packets=True)
 
@@ -45,5 +47,6 @@ def get_pkt_decode(pkt_num):
     return decodes_cap._packets[pkt_num]
 
 def get_curr_fname_path():
+    global analy_fname
     return analy_basedir + analy_fname
 

@@ -132,7 +132,7 @@ class capinfo:
     def GET(self):
         capinfo = {}
         NAME, VALUE = SOCK_ADDR, SOCK_PORT = range(2)
-        p = sp.Popen(['/usr/local/bin/capinfos', cached.get_curr_fname_path()], stdin=sp.PIPE, stdout=sp.PIPE, close_fds=True)
+        p = sp.Popen(['capinfos', cached.get_curr_fname_path()], stdin=sp.PIPE, stdout=sp.PIPE, close_fds=True)
         line = p.stdout.readline()
         while line:
             fields = line.split(':', 1)
