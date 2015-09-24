@@ -1,15 +1,16 @@
 import pyshark
 
 dfilter = None
-analy_fname = None
+analy_fname = 'capture_test.pcapng'
+stat_cache = {}
 decodes_cap = None
 summarys_cap = None
 psummary_list = None
 curr_decode_num = 0
-analy_basedir = '/data/dumpfiles/'
+analy_basedir = '/opt/iDigger-mini/'
 
 def get_summary_list():
-    global summarys_cap, psummary_list, analy_fname
+    global summarys_cap, psummary_list
     if None == summarys_cap: 
         i = 0
         psummary_list = []
@@ -22,8 +23,9 @@ def get_summary_list():
     return psummary_list 
 
 def set_dfilter(dflt):
-    global summarys_cap, decodes_cap, dfilter, curr_decode_num
+    global summarys_cap, decodes_cap, dfilter, curr_decode_num, stat_cache
     dfilter = dflt
+    stat_cache = {}
     curr_decode_num = 0
     summarys_cap = decodes_cap = None 
     
@@ -33,7 +35,7 @@ def set_fname(fname):
     set_dfilter('')
 
 def get_pkt_decode(pkt_num):
-    global decodes_cap, analy_fname
+    global decodes_cap
     if None == decodes_cap: 
         decodes_cap = pyshark.FileCapture(analy_basedir + analy_fname, display_filter=dfilter, keep_packets=True)
 
@@ -46,7 +48,14 @@ def get_pkt_decode(pkt_num):
         curr_decode_num = pkt_num
     return decodes_cap._packets[pkt_num]
 
+def set_stat_cache(stat_name, stat_value):
+    stat_cache[stat_name] = stat_value
+
+def get_stat_cache(stat_name):
+    if stat_cache.has_key(stat_name):
+        return stat_cache[stat_name]
+    return None
+
 def get_curr_fname_path():
-    global analy_fname
     return analy_basedir + analy_fname
 

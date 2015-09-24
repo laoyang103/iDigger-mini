@@ -27,7 +27,7 @@ urls = (
     '/iDiggers/(.*)', 'iDiggers',
     '/set_dfilter', 'set_dfilter'
 )
-db = web.database(dbn='sqlite', db="./db.sqlite3")
+db = web.database(dbn='sqlite', db="/opt/iDigger-mini/db.sqlite3")
 layername = {'UDP': 'Transmission', 'TCP': 'Transmission', 'IP': 'Network', 'ETH': 'Ethernet'}
 
 class res:
@@ -132,7 +132,7 @@ class capinfo:
     def GET(self):
         capinfo = {}
         NAME, VALUE = SOCK_ADDR, SOCK_PORT = range(2)
-        p = sp.Popen(['capinfos', cached.get_curr_fname_path()], stdin=sp.PIPE, stdout=sp.PIPE, close_fds=True)
+        p = sp.Popen(['/usr/local/bin/capinfos', cached.get_curr_fname_path()], stdin=sp.PIPE, stdout=sp.PIPE, close_fds=True)
         line = p.stdout.readline()
         while line:
             fields = line.split(':', 1)
@@ -145,40 +145,45 @@ class capinfo:
 
 class conv:
     def GET(self):
-        outconv = []
-        NAME, VALUE = SOCK_ADDR, SOCK_PORT = range(2)
-        SRCINFO, CONVSTR, DSTINFO, PACKETS_DST2SRC, BYTES_DST2SRC, PACKETS_SRC2DST, BYTES_SRC2DST, PACKETS, BYTES, REL_START, DURATION = range(11)
+        outconv = cached.get_stat_cache('conv')
+        if None == outconv: 
+            outconv = []
+            cached.set_stat_cache('conv', outconv)
+            NAME, VALUE = SOCK_ADDR, SOCK_PORT = range(2)
+            SRCINFO, CONVSTR, DSTINFO, PACKETS_DST2SRC, BYTES_DST2SRC, PACKETS_SRC2DST, BYTES_SRC2DST, PACKETS, BYTES, REL_START, DURATION = range(11)
 
-        base_args = ['tshark', '-q', '-nn', '-r', cached.get_curr_fname_path(), '-z']
-        p = sp.Popen(gen_statistics_args(base_args, 'conv,tcp', cached.dfilter), stdin=sp.PIPE, stdout=sp.PIPE, close_fds=True)
+            base_args = ['tshark', '-q', '-nn', '-r', cached.get_curr_fname_path(), '-z']
+            p = sp.Popen(gen_statistics_args(base_args, 'conv,tcp', cached.dfilter), stdin=sp.PIPE, stdout=sp.PIPE, close_fds=True)
 
-        line = p.stdout.readline()
-        while line:
             line = p.stdout.readline()
-            if '<->' not in line: continue
-            fields = line.split()
-            srcsock = fields[SRCINFO].split(':')
-            dstsock = fields[DSTINFO].split(':')
-            conv = {}
-            conv['Address SRC']         = srcsock[SOCK_ADDR]
-            conv['Port SRC']            = srcsock[SOCK_PORT]
-            conv['Address DST']         = dstsock[SOCK_ADDR]
-            conv['Port DST']            = dstsock[SOCK_PORT]
-            conv['Total Packets']       = fields[PACKETS]
-            conv['Total Bytes']         = fields[BYTES]
-            conv['Packets SRC -> DST']  = fields[PACKETS_SRC2DST]
-            conv['Bytes SRC -> DST']    = fields[BYTES_SRC2DST]
-            conv['Packets DST -> SRC']  = fields[PACKETS_DST2SRC]
-            conv['Bytes DST -> SRC']    = fields[BYTES_DST2SRC]
-            conv['Rel Start']           = fields[REL_START]
-            conv['Duration']            = fields[DURATION]
-            conv['Filter-IP']           = '(ip.addr eq %s and ip.addr eq %s)' % (srcsock[SOCK_ADDR], dstsock[SOCK_ADDR])
-            conv['Filter-TCP']          = '(ip.addr eq %s and ip.addr eq %s) and (tcp.port eq %s and tcp.port eq %s)' % \
-                                           (srcsock[SOCK_ADDR], dstsock[SOCK_ADDR], srcsock[SOCK_PORT], dstsock[SOCK_PORT])
-            conv['Filter-TCP-Stream']   = '%s:%s,%s:%s' % (srcsock[SOCK_ADDR], srcsock[SOCK_PORT], dstsock[SOCK_ADDR], dstsock[SOCK_PORT])
-            outconv.append(conv)
-        p.stdout.close()
-        p.stdin.close()
+            while line:
+                line = p.stdout.readline()
+                if '<->' not in line: continue
+                fields = line.split()
+                srcsock = fields[SRCINFO].split(':')
+                dstsock = fields[DSTINFO].split(':')
+                conv = {}
+                conv['Address SRC']         = srcsock[SOCK_ADDR]
+                conv['Port SRC']            = srcsock[SOCK_PORT]
+                conv['Address DST']         = dstsock[SOCK_ADDR]
+                conv['Port DST']            = dstsock[SOCK_PORT]
+                conv['Total Packets']       = fields[PACKETS]
+                conv['Total Bytes']         = fields[BYTES]
+                conv['Packets SRC -> DST']  = fields[PACKETS_SRC2DST]
+                conv['Bytes SRC -> DST']    = fields[BYTES_SRC2DST]
+                conv['Packets DST -> SRC']  = fields[PACKETS_DST2SRC]
+                conv['Bytes DST -> SRC']    = fields[BYTES_DST2SRC]
+                conv['Rel Start']           = fields[REL_START]
+                conv['Duration']            = fields[DURATION]
+                conv['Filter-IP']           = '(ip.addr eq %s and ip.addr eq %s)' % (srcsock[SOCK_ADDR], dstsock[SOCK_ADDR])
+                conv['Filter-TCP']          = '(ip.addr eq %s and ip.addr eq %s) and (tcp.port eq %s and tcp.port eq %s)' % \
+                                               (srcsock[SOCK_ADDR], dstsock[SOCK_ADDR], srcsock[SOCK_PORT], dstsock[SOCK_PORT])
+                conv['Filter-TCP-Stream']   = '%s:%s,%s:%s' % (srcsock[SOCK_ADDR], srcsock[SOCK_PORT], dstsock[SOCK_ADDR], dstsock[SOCK_PORT])
+                outconv.append(conv)
+            p.stdout.close()
+            p.stdin.close()
+        params = web.input(field='Duration', order=0)
+        outconv = sorted(outconv, key=lambda x:x[params.field], reverse=int(params.order))
         web.header('Access-Control-Allow-Origin', '*')
         return json.dumps(outconv)
 
