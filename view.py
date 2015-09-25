@@ -100,46 +100,52 @@ class decode:
 
 class expertinfo:
     def GET(self):
-        FILTER, FREQUENCY, GROUP, PROTOCOL, SUMMARY = range(5)
-        expert = {'Errors': [], 'Warns': [], 'Notes': [], 'Chats': []}
-        base_args = ['tshark', '-q', '-r', cached.get_curr_fname_path(), '-z']
-        p = sp.Popen(gen_statistics_args(base_args, 'expert', cached.dfilter), stdin=sp.PIPE, stdout=sp.PIPE, close_fds=True)
+        expert = cached.get_stat_cache('expertinfo')
+        if None == expert: 
+            FILTER, FREQUENCY, GROUP, PROTOCOL, SUMMARY = range(5)
+            expert = {'Errors': [], 'Warns': [], 'Notes': [], 'Chats': []}
+            cached.set_stat_cache('expertinfo', expert)
+            base_args = ['tshark', '-q', '-r', cached.get_curr_fname_path(), '-z']
+            p = sp.Popen(gen_statistics_args(base_args, 'expert', cached.dfilter), stdin=sp.PIPE, stdout=sp.PIPE, close_fds=True)
 
-        currinfo = None
-        line = p.stdout.readline()
-        while line:
+            currinfo = None
             line = p.stdout.readline()
-            if '\n' == line or '====' in line or 'Frequency' in line: 
-                continue
-            fields = line.strip().split(None, 4)
-            if 0 == len(fields): continue
-            if not fields[0].isdigit() and expert.has_key(fields[0]): 
-                currinfo = expert[fields[0]]
-                continue
-            record = {}
-            record['Filter']            = fields[FILTER]
-            record['Frequency']         = fields[FREQUENCY]
-            record['Group']             = fields[GROUP]
-            record['Protocol']          = fields[PROTOCOL]
-            record['Summary']           = fields[SUMMARY]
-            currinfo.append(record)
-        p.stdout.close()
-        p.stdin.close()
+            while line:
+                line = p.stdout.readline()
+                if '\n' == line or '====' in line or 'Frequency' in line: 
+                    continue
+                fields = line.strip().split(None, 4)
+                if 0 == len(fields): continue
+                if not fields[0].isdigit() and expert.has_key(fields[0]): 
+                    currinfo = expert[fields[0]]
+                    continue
+                record = {}
+                record['Filter']            = fields[FILTER]
+                record['Frequency']         = fields[FREQUENCY]
+                record['Group']             = fields[GROUP]
+                record['Protocol']          = fields[PROTOCOL]
+                record['Summary']           = fields[SUMMARY]
+                currinfo.append(record)
+            p.stdout.close()
+            p.stdin.close()
         web.header('Access-Control-Allow-Origin', '*')
         return json.dumps(expert)
 
 class capinfo:
     def GET(self):
-        capinfo = {}
-        NAME, VALUE = SOCK_ADDR, SOCK_PORT = range(2)
-        p = sp.Popen(['/usr/local/bin/capinfos', cached.get_curr_fname_path()], stdin=sp.PIPE, stdout=sp.PIPE, close_fds=True)
-        line = p.stdout.readline()
-        while line:
-            fields = line.split(':', 1)
-            capinfo[fields[NAME]] = fields[VALUE].strip()
+        capinfo = cached.get_stat_cache('capinfo')
+        if None == capinfo: 
+            capinfo = {}
+            cached.set_stat_cache('capinfo', capinfo)
+            NAME, VALUE = SOCK_ADDR, SOCK_PORT = range(2)
+            p = sp.Popen(['/usr/local/bin/capinfos', cached.get_curr_fname_path()], stdin=sp.PIPE, stdout=sp.PIPE, close_fds=True)
             line = p.stdout.readline()
-        p.stdout.close()
-        p.stdin.close()
+            while line:
+                fields = line.split(':', 1)
+                capinfo[fields[NAME]] = fields[VALUE].strip()
+                line = p.stdout.readline()
+            p.stdout.close()
+            p.stdin.close()
         web.header('Access-Control-Allow-Origin', '*')
         return json.dumps(capinfo)
 
@@ -182,8 +188,7 @@ class conv:
                 outconv.append(conv)
             p.stdout.close()
             p.stdin.close()
-        params = web.input(field='Duration', order=0)
-        outconv = sorted(outconv, key=lambda x:x[params.field], reverse=int(params.order))
+            print len(outconv)
         web.header('Access-Control-Allow-Origin', '*')
         return json.dumps(outconv)
 
@@ -206,40 +211,56 @@ class filter_expression:
 
 class packet_len:
     def GET(self):
-        out_json = []
-        base_args = ['tshark', '-q', '-r', cached.get_curr_fname_path(), '-z', 'plen,tree']
-        field_names = ['Topic / Item', 'Count', 'Average', 'Min val', 'Max val', 'Rate (ms)', 'Percent', 'Burst rate', 'Burst start']
-        p = sp.Popen(base_args, stdin=sp.PIPE, stdout=sp.PIPE, close_fds=True)
-        line = p.stdout.readline()
-        while line:
-            line = p.stdout.readline().replace('Packet Lengths', 'Packet-Lengths')
-            fields = line.split()
-            if len(fields) != len(field_names): continue
-            out_json.append(dict(zip(field_names, fields)))
+        out_json = cached.get_stat_cache('packet_len')
+        if None == out_json: 
+            out_json = []
+            cached.set_stat_cache('packet_len', out_json)
+            base_args = ['tshark', '-q', '-r', cached.get_curr_fname_path(), '-z', 'plen,tree']
+            field_names = ['Topic / Item', 'Count', 'Average', 'Min val', 'Max val', 'Rate (ms)', 'Percent', 'Burst rate', 'Burst start']
+            p = sp.Popen(base_args, stdin=sp.PIPE, stdout=sp.PIPE, close_fds=True)
+            line = p.stdout.readline()
+            while line:
+                line = p.stdout.readline().replace('Packet Lengths', 'Packet-Lengths')
+                fields = line.split()
+                if len(fields) != len(field_names): continue
+                out_json.append(dict(zip(field_names, fields)))
+            p.stdout.close()
+            p.stdin.close()
         web.header('Access-Control-Allow-Origin', '*')
         return json.dumps(out_json)
 
 class ip_hosts:
     def GET(self):
-        out_json = []
-        base_args = ['tshark', '-q', '-r', cached.get_curr_fname_path(), '-z', 'ip_hosts,tree']
-        field_names = ['Topic / Item', 'Count', 'Rate (ms)', 'Percent', 'Burst rate', 'Burst start']
-        p = sp.Popen(base_args, stdin=sp.PIPE, stdout=sp.PIPE, close_fds=True)
-        line = p.stdout.readline()
-        while line:
-            line = p.stdout.readline().replace('IP Addresses', 'IP Addresses')
-            fields = line.split()
-            if len(fields) != len(field_names): continue
-            out_json.append(dict(zip(field_names, fields)))
+        out_json = cached.get_stat_cache('ip_hosts')
+        if None == out_json: 
+            out_json = []
+            cached.set_stat_cache('ip_hosts', out_json)
+            base_args = ['tshark', '-q', '-r', cached.get_curr_fname_path(), '-z', 'ip_hosts,tree']
+            field_names = ['Topic / Item', 'Count', 'Rate (ms)', 'Percent', 'Burst rate', 'Burst start']
+            p = sp.Popen(base_args, stdin=sp.PIPE, stdout=sp.PIPE, close_fds=True)
+            line = p.stdout.readline()
+            while line:
+                line = p.stdout.readline().replace('IP Addresses', 'IP Addresses')
+                fields = line.split()
+                if len(fields) != len(field_names): continue
+                out_json.append(dict(zip(field_names, fields)))
+            p.stdout.close()
+            p.stdin.close()
         web.header('Access-Control-Allow-Origin', '*')
         return json.dumps(out_json)
 
 class io_phs:
     def GET(self):
-        base_args = ['tshark', '-q', '-r', cached.get_curr_fname_path(), '-z', 'io,phs']
-        p = sp.Popen(base_args, stdin=sp.PIPE, stdout=sp.PIPE, close_fds=True)
+        out_json = cached.get_stat_cache('io_phs')
+        if None == out_json: 
+            base_args = ['tshark', '-q', '-r', cached.get_curr_fname_path(), '-z', 'io,phs']
+            p = sp.Popen(base_args, stdin=sp.PIPE, stdout=sp.PIPE, close_fds=True)
+            out_json = p.stdout.read()
+            cached.set_stat_cache('io_phs', out_json)
+            p.stdout.close()
+            p.stdin.close()
         web.header('Access-Control-Allow-Origin', '*')
-        return p.stdout.read()
+        return out_json
 
 class uflts:
     def GET(self):
